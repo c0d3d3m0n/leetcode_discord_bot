@@ -9,6 +9,7 @@ import asyncio
 from striver_loader import StriverLoader
 from leetcode_service import LeetCodeService
 from scheduler import DailyScheduler
+from code_runner import CodeRunner
 
 # Logging Setup
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -43,6 +44,7 @@ async def help_command(ctx):
         ("!striver", "Get a random new problem from the Striver DSA sheet"),
         ("!topic <name>", "Get a random Striver problem from a specific topic (e.g. `!topic Arrays`)"),
         ("!stats", "View repository statistics (Total/Posted/Remaining)"),
+        ("!submit", "Run code snippets (use markdown blocks, e.g. ```python ... ```)"),
         ("!dsahelp", "Show this help message (Aliases: !commands)")
     ]
     
@@ -55,6 +57,53 @@ async def help_command(ctx):
 # Initialize Services
 striver_loader = StriverLoader()
 leetcode_service = LeetCodeService()
+code_runner = CodeRunner()
+
+@bot.command(name='submit')
+async def submit_command(ctx, *, code_block: str = None):
+    """
+    Executes code provided in a markdown block.
+    Usage: !submit ```python print('hello') ```
+    """
+    if not code_block:
+        await ctx.send("Please provide code in a markdown block! Example:\n!submit\n\\`\\`\\`python\nprint('Hello')\n\\`\\`\\`")
+        return
+
+    # cleaner parsing of the code block
+    import re
+    match = re.search(r"```(\w+)?\n(.*?)```", code_block, re.DOTALL)
+    
+    if not match:
+        await ctx.send("Could not parse code block. Ensure you use \\`\\`\\`language ... \\`\\`\\` formatting.")
+        return
+
+    language = match.group(1) or "python" # Default to python if not specified
+    code = match.group(2)
+
+    msg = await ctx.send(f"Running {language} code... ⏳")
+    
+    result = code_runner.execute_code(language, code)
+    
+    if "error" in result:
+        await msg.edit(content=f"❌ Execution Error: {result['error']}")
+        return
+
+    # prepare output
+    output = result.get('output', '')
+    if len(output) > 1900:
+        output = output[:1900] + "... (truncated)"
+    elif not output:
+        output = "(No Output)"
+
+    embed = discord.Embed(
+        title=f"RUN: {result.get('code') == 0 and '✅ Success' or '⚠️ Error'}",
+        color= result.get('code') == 0 and 0x2ecc71 or 0xe74c3c
+    )
+    embed.add_field(name="Output", value=f"```\n{output}\n```", inline=False)
+    embed.set_footer(text=f"Language: {language}")
+
+    await msg.edit(content=None, embed=embed)
+
 
 async def post_daily_problem(channel, source_override=None):
     """
