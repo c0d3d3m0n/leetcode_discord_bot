@@ -52,6 +52,14 @@ chna
 - `scheduler.py`: Handles timing and periodic tasks.
 - `data/`: Stores problem lists and history.
 
+## Sharing the Bot
+To add this bot to another server, send this Invite Link to the server admin:
+[**Invite Bot**](https://discord.com/oauth2/authorize?client_id=1454710862458650678&permissions=8&scope=bot%20applications.commands)
+
+**Note:**
+- **Commands** (`!daily`, `!striver`, etc.) will work in **any** server the bot is in.
+- **Automatic Auto-Posting** will currently only happen in the single channel defined in `CHANNEL_ID` (your main server).
+
 ## Contributing
 
 Feel free to fork and submit PRs!
