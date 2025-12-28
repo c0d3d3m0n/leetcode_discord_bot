@@ -4,7 +4,10 @@ A Python-based Discord bot designed to foster daily coding habits by automatical
 
 ## Features
 
-chna
+- **Daily Automation**: Automatically posts a new problem every day.
+- **Code Execution (`!submit`)**: Run your code directly in Discord!
+  > **Note**: To see output, you **MUST** use `print()` in your code.
+- **Dual Source**: Striver DSA Sheet & LeetCode Daily.
 
 ## Setup & Installation
 

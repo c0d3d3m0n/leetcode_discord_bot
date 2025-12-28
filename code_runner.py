@@ -47,6 +47,7 @@ class CodeRunner:
             response = requests.post(self.API_URL, json=payload, headers=self.headers, timeout=10)
             response.raise_for_status()
             result = response.json()
+            logging.info(f"Piston Response: {result}")
             
             run_stage = result.get("run", {})
             return {

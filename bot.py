@@ -4,6 +4,7 @@ from discord.ext import commands
 from dotenv import load_dotenv
 import logging
 import asyncio
+import datetime
 
 # Service Imports
 from striver_loader import StriverLoader
@@ -71,14 +72,35 @@ async def submit_command(ctx, *, code_block: str = None):
 
     # cleaner parsing of the code block
     import re
-    match = re.search(r"```(\w+)?\n(.*?)```", code_block, re.DOTALL)
+    # Flexible regex:
+    # 1. ``` : primitive start
+    # 2. ([a-zA-Z0-9+\-#]*) : Optional language (allow chars like +, # for c++, c#)
+    # 3. \s+ : At least one whitespace (newline usually)
+    # 4. (.*?) : The code
+    # 5. ``` : End
+    match = re.search(r"```([a-zA-Z0-9+\-#]*)\s+(.*?)```", code_block, re.DOTALL)
     
     if not match:
-        await ctx.send("Could not parse code block. Ensure you use \\`\\`\\`language ... \\`\\`\\` formatting.")
-        return
+        # Fallback: Maybe they didn't put a language? or formatting is slightly off
+        # Let's try to just find content between ``` and ```
+        match = re.search(r"```(.*?)```", code_block, re.DOTALL)
 
-    language = match.group(1) or "python" # Default to python if not specified
-    code = match.group(2)
+    if not match:
+         await ctx.send("Could not parse code block. Ensure you use \\`\\`\\`language ... \\`\\`\\` formatting.")
+         return
+
+    language = match.group(1) if len(match.groups()) > 1 else "python"
+    # If the regex was the fallback one, group 1 is the code
+    if len(match.groups()) == 1:
+         code = match.group(1)
+         language = "python" # default to python if generic block
+    else:
+        # standard case
+        language = match.group(1) or "python"
+        code = match.group(2)
+        
+    # Clean up language string (sometimes has whitespace if regex was loose)
+    language = language.strip()
 
     msg = await ctx.send(f"Running {language} code... ⏳")
     
@@ -105,16 +127,10 @@ async def submit_command(ctx, *, code_block: str = None):
     await msg.edit(content=None, embed=embed)
 
 
-async def post_daily_problem(channel, source_override=None):
+async def post_daily_problem(channel, source_override=None, topic_filter=None):
     """
-    Logic to determine which problem to post and send it to Discord.
-    source_override: 'leetcode' or 'striver' to force a specific source.
+    Logic to determine which question to post.
     """
-    # For now, simple logic: Alternate or just fetch LeetCode for today?
-    # Let's try to do both or customizable. The prompt suggested "One question per day".
-    # Let's implement a random choice or day-based rotation if no override.
-    
-    # Simple strategy: Even days = LeetCode, Odd days = Striver
     import datetime
     day_of_month = datetime.datetime.now().day
     
@@ -125,12 +141,13 @@ async def post_daily_problem(channel, source_override=None):
     embed = None
     
     if source == 'leetcode':
+        # LeetCode logic (unchanged)
         data = leetcode_service.get_daily_challenge()
         if data:
             embed = discord.Embed(
                 title=f"🚀 Daily LeetCode Challenge: {data['title']}",
                 url=data['link'],
-                color=0xf0ad4e, # Orange-ish for LC
+                color=0xf0ad4e,
                 timestamp=datetime.datetime.now()
             )
             embed.add_field(name="Difficulty", value=data['difficulty'], inline=True)
@@ -143,12 +160,13 @@ async def post_daily_problem(channel, source_override=None):
             return
 
     elif source == 'striver':
-        data = striver_loader.get_random_question()
+        # Pass topic_filter if provided
+        data = striver_loader.get_random_question(topic_filter=topic_filter)
         if data:
             embed = discord.Embed(
                 title=f"💡 Striver DSA: {data['title']}",
                 url=data['link'],
-                color=0x2ecc71, # Green
+                color=0x2ecc71,
                 timestamp=datetime.datetime.now()
             )
             embed.add_field(name="Difficulty", value=data['difficulty'], inline=True)
@@ -158,67 +176,19 @@ async def post_daily_problem(channel, source_override=None):
             # Mark as posted
             striver_loader.mark_as_posted(data['id'])
         else:
-            logging.info("No new Striver questions available.")
-            await channel.send("All Striver questions have been posted! Time to restock.")
+            if topic_filter:
+                 await channel.send(f"No available questions found for topic: **{topic_filter}** (or all posted).")
+            else:
+                 await channel.send("All Striver questions have been posted! Time to restock.")
             return
 
     if embed:
         await channel.send(embed=embed)
 
-
-@bot.event
-async def on_ready():
-    logging.info(f'Logged in as {bot.user} (ID: {bot.user.id})')
-    logging.info('-------------------------------------------')
-    
-    # Initialize Scheduler
-    # We pass the bot, channel_id, and the callback function for posting
-    await bot.add_cog(DailyScheduler(bot, CHANNEL_ID, post_daily_problem))
-
-
-@bot.command(name='daily')
-async def daily(ctx):
-    """Manually triggers the daily post."""
-    logging.info(f"Manual trigger by {ctx.author}")
-    await post_daily_problem(ctx.channel)
-
-@bot.command(name='leetcode')
-async def leetcode_command(ctx):
-    """Fetches today's LeetCode challenge."""
-    await post_daily_problem(ctx.channel, source_override='leetcode')
-
-@bot.command(name='striver')
-async def striver_command(ctx):
-    """Fetches a random unique Striver problem."""
-    await post_daily_problem(ctx.channel, source_override='striver')
-
 @bot.command(name='topic')
 async def topic_command(ctx, *, topic_name: str):
-    """Fetches a random Striver problem from a specific topic."""
-    # We need to expose a method in StriverLoader to filter by topic, which we did: get_random_question(topic=...)
-    # But post_daily_problem logic needs to handle this specific request.
-    # The simplest way is to fetch the data here and use the embed logic, or refactor post_daily_problem.
-    # Refactoring slightly to reuse embed logic is cleaner, but for now copying is faster/safer or just call loader directly.
-    
-    data = striver_loader.get_random_question(topic=topic_name)
-    
-    if data:
-        embed = discord.Embed(
-            title=f"💡 Striver DSA ({data['topic']}): {data['title']}",
-            url=data['link'],
-            color=0x2ecc71,
-            timestamp=datetime.datetime.now()
-        )
-        embed.add_field(name="Difficulty", value=data['difficulty'], inline=True)
-        embed.add_field(name="Topic", value=data['topic'], inline=True)
-        embed.set_footer(text=f"Striver Sheet | ID: {data['id']}")
-        
-        # We generally might NOT want to mark manual topic requests as "posted" to avoid burning through the list
-        # for daily consumption, OR successful solve = posted.
-        # Let's decide NOT to mark it to keep the daily schedule fresh.
-        await ctx.send(embed=embed)
-    else:
-        await ctx.send(f"No questions found for topic: **{topic_name}** (or all posted).")
+    """Get a random Striver problem from a specific topic."""
+    await post_daily_problem(ctx.channel, source_override='striver', topic_filter=topic_name)
 
 @bot.command(name='stats')
 async def stats_command(ctx):
