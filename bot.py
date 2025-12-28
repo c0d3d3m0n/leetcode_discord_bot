@@ -185,6 +185,37 @@ async def post_daily_problem(channel, source_override=None, topic_filter=None):
     if embed:
         await channel.send(embed=embed)
 
+
+@bot.event
+async def on_ready():
+    logging.info(f'Logged in as {bot.user} (ID: {bot.user.id})')
+    logging.info('-------------------------------------------')
+    
+    # Initialize Scheduler
+    # We pass the bot, channel_id, and the callback function for posting
+    # Explicitly force 'leetcode' source for the daily schedule as requested
+    async def scheduled_post_wrapper(channel):
+        await post_daily_problem(channel, source_override='leetcode')
+        
+    await bot.add_cog(DailyScheduler(bot, CHANNEL_ID, scheduled_post_wrapper))
+
+
+@bot.command(name='daily')
+async def daily(ctx):
+    """Manually triggers the daily post."""
+    logging.info(f"Manual trigger by {ctx.author}")
+    await post_daily_problem(ctx.channel)
+
+@bot.command(name='leetcode')
+async def leetcode_command(ctx):
+    """Fetches today's LeetCode challenge."""
+    await post_daily_problem(ctx.channel, source_override='leetcode')
+
+@bot.command(name='striver')
+async def striver_command(ctx):
+    """Fetches a random unique Striver problem."""
+    await post_daily_problem(ctx.channel, source_override='striver')
+
 @bot.command(name='topic')
 async def topic_command(ctx, *, topic_name: str):
     """Get a random Striver problem from a specific topic."""
