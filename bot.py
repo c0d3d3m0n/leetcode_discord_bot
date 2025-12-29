@@ -34,7 +34,7 @@ async def help_command(ctx):
     """Shows this help message."""
     embed = discord.Embed(
         title="🤖 Bot Commands Help",
-        description="Here are the available commands to interact with the Daily DSA Bot.",
+        description="Here are the available commands to interact with the Daily DSA Bot.\n\n[**Join our Discord Server!**](https://discord.gg/ucRc7Drv)",
         color=0x3498db,
         timestamp=datetime.datetime.now()
     )
