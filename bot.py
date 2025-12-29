@@ -51,7 +51,11 @@ async def help_command(ctx):
     
     for name, desc in commands_list:
         embed.add_field(name=name, value=desc, inline=False)
-        
+    
+    # Add Invite Link
+    invite_url = f"https://discord.com/api/oauth2/authorize?client_id={ctx.bot.user.id}&permissions=274877908992&scope=bot"
+    embed.add_field(name="🔗 Add Me", value=f"[Click here to invite me to your server]({invite_url})", inline=False)
+
     embed.set_footer(text="Happy Coding! 🚀")
     await ctx.send(embed=embed)
 
